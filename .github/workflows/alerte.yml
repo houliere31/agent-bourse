@@ -1,0 +1,20 @@
+name: Rapport Bourse Quotidien
+on:
+  schedule:
+    - cron: '0 17 * * 1-5' # 17h00 UTC = 18h00 heure d'hiver à Paris
+  workflow_dispatch: # Permet aussi de le lancer manuellement d'un clic
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install google-genai yfinance requests
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bourse.py
