@@ -11,7 +11,7 @@ from alpaca.trading.enums import OrderSide, TimeInForce
 
 # --- 1. PARAMÈTRES DU PORTEFEUILLE VIRTUEL ---
 ACTIONS_AUTORISEES = ["AAPL", "MSFT", "NVDA", "SPY"]
-MONTANT_MAX_PAR_ORDRE = 2000.0  # Plafond relevé à 2000 $
+MONTANT_MAX_PAR_ORDRE = 2000.0
 
 # --- 2. CONNEXION AU COMPTE DE SIMULATION ALPACA ---
 trading_client = TradingClient(
@@ -64,7 +64,7 @@ prompt = f"""
 Données de marché en direct (séance en cours, pas de 15 min) :
 {donnees_marche}
 
-Règles : Tu surveilles le marché en continu. Choisis une seule action parmi {ACTIONS_AUTORISEES}.
+Règles : Tu surveilles le marché toutes les 15 minutes. Choisis une seule action parmi {ACTIONS_AUTORISEES}.
 - N'achète (BUY, max {MONTANT_MAX_PAR_ORDRE} $) que si tu détectes une vraie opportunité ou un signal clair sur la séance (évite d'acheter la même action en boucle si tu en détiens déjà beaucoup).
 - Ne vends (SELL) qu'une action déjà détenue si le mouvement se retourne ou pour sécuriser des gains.
 - Dans la majorité des cas, si rien de décisif ne se passe, réponds HOLD.
@@ -126,16 +126,23 @@ if ordre.symbole in ACTIONS_AUTORISEES:
             trading_client.close_position(ordre.symbole)
             statut_execution = f"✅ VENTE TOTALE : {ordre.symbole}"
 
-# --- 6. NOTIFICATION TELEGRAM UNIQUEMENT SI UN ORDRE EST PASSÉ ---
+# --- 6. ENVOI SYSTÉMATIQUE SUR TELEGRAM TOUTES LES 15 MIN ---
 if statut_execution:
-    message = (
-        f"⚡ ALERTE TRADING EN DIRECT\n"
-        f"Modèle : {modele_utilise}\n"
-        f"{statut_execution}\n"
-        f"Cash restant : {round(cash_disponible, 2)} $\n\n"
-        f"Raison : {ordre.justification}"
-    )
-    url_tg = f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage"
-    requests.post(url_tg, data={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": message})
+    entete = "⚡ ALERTE TRADING EN DIRECT"
+    detail_action = f"{statut_execution}\nCash restant : {round(cash_disponible, 2)} $"
 else:
-    print(f"HOLD sur {ordre.symbole} : {ordre.justification}")
+    entete = f"⏸️ POINT MARCHÉ (HOLD - {ordre.symbole})"
+    detail_action = f"Aucune opération exécutée\nCash disponible : {round(cash_disponible, 2)} $"
+
+message = (
+    f"{entete}\n"
+    f"Modèle : {modele_utilise}\n"
+    f"{detail_action}\n\n"
+    f"Justification : {ordre.justification}"
+)
+
+url_tg = f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage"
+requests.post(url_tg, data={
+    "chat_id": os.environ["TELEGRAM_CHAT_ID"],
+    "text": message
+})
