@@ -35,7 +35,7 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI (AVEC BASCULE AUTOMATIQUE DE MODÈLE) ---
+# --- 4. DÉCISION DE GEMINI ---
 class OrdreBourse(BaseModel):
     decision: str
     symbole: str
@@ -58,12 +58,22 @@ Données de marché (5 derniers jours) :
 Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (BUY), ne dépasse jamais {MONTANT_MAX_PAR_ORDRE} $. Si tu vends (SELL), vends uniquement une action déjà détenue. Sinon choisis HOLD.
 """
 
-modeles_secours = ["gemini-3.8-flash", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash"]
+# Récupère automatiquement tous les modèles Gemini compatibles sur votre clé
+modeles_disponibles = [
+    m.name for m in client_ia.models.list()
+    if "gemini" in m.name.lower()
+    and "generateContent" in (m.supported_actions or [])
+    and not any(x in m.name.lower() for x in ["embedding", "imagen", "veo", "audio", "tts", "robotics"])
+]
+print("Modèles trouvés sur la clé :", modeles_disponibles)
+
 reponse = None
 modele_utilise = ""
+erreurs_log = []
 
-for modele in modeles_secours:
+for modele in modeles_disponibles:
     try:
+        print(f"Test avec {modele}...")
         reponse = client_ia.models.generate_content(
             model=modele,
             contents=prompt,
@@ -77,11 +87,12 @@ for modele in modeles_secours:
         modele_utilise = modele
         break
     except Exception as e:
+        erreurs_log.append(f"{modele}: {e}")
         time.sleep(2)
         continue
 
 if reponse is None:
-    raise RuntimeError("Tous les modèles Gemini sont temporairement saturés.")
+    raise RuntimeError("Échec sur tous les modèles : " + " | ".join(erreurs_log))
 
 ordre = OrdreBourse.model_validate_json(reponse.text)
 statut_execution = "Aucune opération exécutée (HOLD)."
