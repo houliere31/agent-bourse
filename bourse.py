@@ -34,14 +34,17 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI (DÉTECTION AUTOMATIQUE DU MODÈLE ACTIF) ---
+# --- 4. DÉCISION DE GEMINI (FORCE v1beta + MODÈLE ACTIF) ---
 class OrdreBourse(BaseModel):
     decision: str   # "BUY", "SELL" ou "HOLD"
     symbole: str
     montant_usd: float
     justification: str
 
-client_ia = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+client_ia = genai.Client(
+    api_key=os.environ["GEMINI_API_KEY"],
+    http_options={"api_version": "v1beta"}
+)
 
 modele_actif = next(
     m.name for m in client_ia.models.list()
