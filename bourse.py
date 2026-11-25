@@ -10,7 +10,7 @@ from alpaca.trading.enums import OrderSide, TimeInForce
 
 # --- 1. PARAMÈTRES DU PORTEFEUILLE VIRTUEL ---
 ACTIONS_AUTORISEES = ["AAPL", "MSFT", "NVDA", "SPY"]
-MONTANT_MAX_PAR_ORDRE = 500.0 # En dollars virtuels ($)
+MONTANT_MAX_PAR_ORDRE = 500.0  # En dollars virtuels ($)
 
 # --- 2. CONNEXION AU COMPTE DE SIMULATION ALPACA (paper=True = FICTIF) ---
 trading_client = TradingClient(
@@ -22,7 +22,9 @@ trading_client = TradingClient(
 compte = trading_client.get_account()
 cash_disponible = float(compte.cash)
 positions = trading_client.get_all_positions()
-portefeuille_str = ", ".join([f"{p.symbol}: {p.qty} actions (valeur {p.market_value}$)" for p in positions]) or "Aucune position"
+portefeuille_str = ", ".join(
+    [f"{p.symbol}: {p.qty} actions (valeur {p.market_value}$)" for p in positions]
+) or "Aucune position"
 
 # --- 3. RÉCUPÉRATION DES COURS DU JOUR ---
 donnees_marche = ""
@@ -32,7 +34,7 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI ---
+# --- 4. DÉCISION DE GEMINI (DÉTECTION AUTOMATIQUE DU MODÈLE ACTIF) ---
 class OrdreBourse(BaseModel):
     decision: str   # "BUY", "SELL" ou "HOLD"
     symbole: str
@@ -40,6 +42,11 @@ class OrdreBourse(BaseModel):
     justification: str
 
 client_ia = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+modele_actif = next(
+    m.name for m in client_ia.models.list()
+    if "gemini" in m.name and "flash" in m.name and "generateContent" in m.supported_actions
+)
 
 prompt = f"""
 État de mon portefeuille virtuel :
@@ -53,7 +60,7 @@ Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (B
 """
 
 reponse = client_ia.models.generate_content(
-    model="gemini-3-flash-preview",
+    model=modele_actif,
     contents=prompt,
     config=types.GenerateContentConfig(
         system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
@@ -89,6 +96,7 @@ if ordre.symbole in ACTIONS_AUTORISEES:
 # --- 6. RAPPORT SUR TELEGRAM ---
 message = (
     f"🧪 RAPPORT SIMULATION (PAPER)\n"
+    f"Modèle IA : {modele_actif}\n"
     f"Cash virtuel : {cash_disponible} $\n"
     f"Décision IA : {ordre.decision} ({ordre.symbole})\n"
     f"Exécution : {statut_execution}\n\n"
