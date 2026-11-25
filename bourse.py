@@ -34,7 +34,7 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI (FORCE v1beta + MODÈLE ACTIF) ---
+# --- 4. DÉCISION DE GEMINI ---
 class OrdreBourse(BaseModel):
     decision: str   # "BUY", "SELL" ou "HOLD"
     symbole: str
@@ -44,11 +44,6 @@ class OrdreBourse(BaseModel):
 client_ia = genai.Client(
     api_key=os.environ["GEMINI_API_KEY"],
     http_options={"api_version": "v1beta"}
-)
-
-modele_actif = next(
-    m.name for m in client_ia.models.list()
-    if "gemini" in m.name and "flash" in m.name and "generateContent" in m.supported_actions
 )
 
 prompt = f"""
@@ -63,7 +58,7 @@ Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (B
 """
 
 reponse = client_ia.models.generate_content(
-    model=modele_actif,
+    model="gemini-3.8-flash",
     contents=prompt,
     config=types.GenerateContentConfig(
         system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
@@ -99,7 +94,6 @@ if ordre.symbole in ACTIONS_AUTORISEES:
 # --- 6. RAPPORT SUR TELEGRAM ---
 message = (
     f"🧪 RAPPORT SIMULATION (PAPER)\n"
-    f"Modèle IA : {modele_actif}\n"
     f"Cash virtuel : {cash_disponible} $\n"
     f"Décision IA : {ordre.decision} ({ordre.symbole})\n"
     f"Exécution : {statut_execution}\n\n"
