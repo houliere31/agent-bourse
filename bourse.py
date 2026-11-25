@@ -53,7 +53,7 @@ Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (B
 """
 
 reponse = client_ia.models.generate_content(
-    model="gemini-3.8-flash",
+    model="gemini-3.0-flash",
     contents=prompt,
     config=types.GenerateContentConfig(
         system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
