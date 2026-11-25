@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import yfinance as yf
 from pydantic import BaseModel
@@ -10,9 +11,9 @@ from alpaca.trading.enums import OrderSide, TimeInForce
 
 # --- 1. PARAMÈTRES DU PORTEFEUILLE VIRTUEL ---
 ACTIONS_AUTORISEES = ["AAPL", "MSFT", "NVDA", "SPY"]
-MONTANT_MAX_PAR_ORDRE = 500.0  # En dollars virtuels ($)
+MONTANT_MAX_PAR_ORDRE = 500.0
 
-# --- 2. CONNEXION AU COMPTE DE SIMULATION ALPACA (paper=True = FICTIF) ---
+# --- 2. CONNEXION AU COMPTE DE SIMULATION ALPACA ---
 trading_client = TradingClient(
     os.environ["ALPACA_API_KEY"],
     os.environ["ALPACA_SECRET_KEY"],
@@ -34,9 +35,9 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI ---
+# --- 4. DÉCISION DE GEMINI (AVEC 3 TENTATIVES EN CAS DE SATURATION 503) ---
 class OrdreBourse(BaseModel):
-    decision: str   # "BUY", "SELL" ou "HOLD"
+    decision: str
     symbole: str
     montant_usd: float
     justification: str
@@ -57,16 +58,25 @@ Données de marché (5 derniers jours) :
 Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (BUY), ne dépasse jamais {MONTANT_MAX_PAR_ORDRE} $. Si tu vends (SELL), vends uniquement une action déjà détenue. Sinon choisis HOLD.
 """
 
-reponse = client_ia.models.generate_content(
-    model="gemini-3.8-flash",
-    contents=prompt,
-    config=types.GenerateContentConfig(
-        system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
-        response_mime_type="application/json",
-        response_schema=OrdreBourse,
-        temperature=0.1,
-    ),
-)
+reponse = None
+for tentative in range(3):
+    try:
+        reponse = client_ia.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
+                response_mime_type="application/json",
+                response_schema=OrdreBourse,
+                temperature=0.1,
+            ),
+        )
+        break
+    except Exception as e:
+        if "503" in str(e) and tentative < 2:
+            time.sleep(15)
+        else:
+            raise
 
 ordre = OrdreBourse.model_validate_json(reponse.text)
 statut_execution = "Aucune opération exécutée (HOLD)."
