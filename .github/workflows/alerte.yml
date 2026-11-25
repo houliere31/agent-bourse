@@ -1,8 +1,10 @@
 name: Rapport Bourse Quotidien
+
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 17 * * 1-5' # 17h00 UTC = 18h00 heure d'hiver à Paris
-  workflow_dispatch: # Permet aussi de le lancer manuellement d'un clic
+    # Exécution toutes les 15 minutes, du lundi au vendredi, de 14h00 à 21h45 UTC (15h00 à 22h45 heure de Paris)
+    - cron: '*/15 14-21 * * 1-5'
 
 jobs:
   analyse:
@@ -13,11 +15,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install google-genai yfinance requests alpaca-py pydantic
-      - env:
+      - name: Run python bourse.py
+        env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python bourse.py
-
