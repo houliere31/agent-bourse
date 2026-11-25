@@ -35,7 +35,7 @@ for symbole in ACTIONS_AUTORISEES:
     var_5j = round(((hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]) * 100, 2)
     donnees_marche += f"- {symbole} : {prix} $ (Variation 5j : {var_5j}%)\n"
 
-# --- 4. DÉCISION DE GEMINI (AVEC 3 TENTATIVES EN CAS DE SATURATION 503) ---
+# --- 4. DÉCISION DE GEMINI (AVEC BASCULE AUTOMATIQUE DE MODÈLE) ---
 class OrdreBourse(BaseModel):
     decision: str
     symbole: str
@@ -58,11 +58,14 @@ Données de marché (5 derniers jours) :
 Règles : Choisis une seule action parmi {ACTIONS_AUTORISEES}. Si tu achètes (BUY), ne dépasse jamais {MONTANT_MAX_PAR_ORDRE} $. Si tu vends (SELL), vends uniquement une action déjà détenue. Sinon choisis HOLD.
 """
 
+modeles_secours = ["gemini-3.8-flash", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.0-flash"]
 reponse = None
-for tentative in range(3):
+modele_utilise = ""
+
+for modele in modeles_secours:
     try:
         reponse = client_ia.models.generate_content(
-            model="gemini-3.8-flash",
+            model=modele,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction="Tu es un gestionnaire de portefeuille prudent et discipliné.",
@@ -71,12 +74,14 @@ for tentative in range(3):
                 temperature=0.1,
             ),
         )
+        modele_utilise = modele
         break
     except Exception as e:
-        if "503" in str(e) and tentative < 2:
-            time.sleep(15)
-        else:
-            raise
+        time.sleep(2)
+        continue
+
+if reponse is None:
+    raise RuntimeError("Tous les modèles Gemini sont temporairement saturés.")
 
 ordre = OrdreBourse.model_validate_json(reponse.text)
 statut_execution = "Aucune opération exécutée (HOLD)."
@@ -104,6 +109,7 @@ if ordre.symbole in ACTIONS_AUTORISEES:
 # --- 6. RAPPORT SUR TELEGRAM ---
 message = (
     f"🧪 RAPPORT SIMULATION (PAPER)\n"
+    f"Modèle : {modele_utilise}\n"
     f"Cash virtuel : {cash_disponible} $\n"
     f"Décision IA : {ordre.decision} ({ordre.symbole})\n"
     f"Exécution : {statut_execution}\n\n"
